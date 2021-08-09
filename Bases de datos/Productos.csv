@@ -1,0 +1,11 @@
+ID_PROD,PRODUCTO,DESCRIPCIÓN,CANTIDAD_DISPONIBLE,PRECIO
+0,The Original Protein Bread,500 g ,660.0,7500.0
+1,Wrap Low Carb,320g,720.0,5600.0
+2,Mezcla Pizza Low Carb,500g,720.0,7100.0
+3,2x The Original Protein Bread,Oferta: The Original Protein Bread(2) ,330.0,13800.0
+4,3x The Original Protein Bread,Oferta: The Original Protein Bread(3) ,220.0,20300.0
+5,2x Wrap Low Carb ,Oferta: Wrap Low Carb(2) ,360.0,10200.0
+6,The Original Protein Bread + Wrap Low Carb ,Oferta: The Original Protein Bread(1) Wrap Low Carb(1) ,660.0,12000.0
+7,The Original Protein Bread + Mezcla Pizza Low Carb,Oferta: The Original Protein Bread(1) Mezcla Pizza Low Carb(1) ,660.0,13400.0
+8,Ghee Classic,250 ml ,30.0,6000.0
+9,Ghee Garlic,250 ml ,30.0,6990.0

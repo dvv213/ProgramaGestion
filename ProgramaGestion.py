@@ -26,8 +26,67 @@ path_Ventas='Bases de datos/Ventas.csv'
 path_Despachos='Bases de datos/Despachos.csv'
 path_Lista_Ventas = "Bases de datos/ListaVentas.pkl"
 path_Ofertas="Bases de datos/Ofertas.pkl"
+path_Lista_Eventos="Bases de datos/ListaEventos.csv"
+path_Eventos="Bases de datos/Events.pkl"
+####Hay que definir los siguientes eventos
+#1 Creacion de producto.
+#2 Creacion de oferta.
+#3 Modificación de producto.
+#4 Modificación de oferta.
+#5 Creación de una venta.
+#6 Eliminación de una venta.
+#7 Generacion guia de despachos.
+class Evento:
+    """
+    Cada evento tiene asociado un tipo que pueden ser
+    1 Creacion de producto.
+    2 Creacion de oferta.
+    3 Modificación de producto.
+    4 Modificación de oferta.
+    5 Creación de una venta.
+    6 Eliminación de una venta.
+    """
+    def __init__(self,tipo,id_evento,fecha):
+        self.tipo=tipo
+        self.id_evento=id_evento
+        self.fecha=fecha
+class EventoProducto(Evento):
+    def __init__(self,tipo,id_evento,fecha,id_prod,precio_old=None,precio_new=None,
+                 cantidad_old=None,cantidad_new=None):
+        super().__init__(tipo,id_evento,fecha)
+        self.precio_old=precio_old
+        self.precio_new=precio_new
+        self.cantidad_old=cantidad_old
+        self.cantidad_new=cantidad_new
+        self.id_prod=id_prod
+class EventoOferta(Evento):
+    def __init__(self,tipo,id_evento,fecha,id_prod,nombre_old=None,nombre_new=None):
+        super().__init__(tipo,id_evento,fecha)
+        self.nombre_old=nombre_old
+        self.nombre_new=nombre_new
+        self.id_prod=id_prod
+class EventoVenta(Evento):
+    def __init__(self,tipo,id_evento,fecha,id_venta):
+        super().__init__(tipo,id_evento,fecha)
+        self.id_venta=id_venta
 
-
+try:
+    ListaEventos=pd.read_csv(path_Lista_Eventos, encoding='utf-8')
+    ListaEventos.set_index('ID_EVENTO',inplace=True)
+except:
+    print('No se encontro base de datos de Lista eventos.')
+    ListaEventos=pd.DataFrame(columns=['ID_EVENTO','FECHA','TIPO'])
+    ListaEventos.set_index('ID_EVENTO',inplace=True)
+    ListaEventos.to_csv(path_Lista_Eventos, encoding='utf-8')
+    
+if os.path.exists(path_Eventos):
+    with open(path_Eventos, 'rb') as file:
+        Eventos=pickle.load(file)
+else:
+    print('Listas de ventas no existen.')
+    with open(path_Eventos, 'wb') as file:
+        Eventos={}
+        pickle.dump(Eventos, file)
 try:
     Productos=pd.read_csv(path_Productos, encoding='utf-8')
     Productos.set_index('ID_PROD',inplace=True)
@@ -74,7 +133,26 @@ else:
         pickle.dump(Ofertas, file)
         
 ### Diccionario que guarda los productos comprados en cada venta.
-
+def crear_evento(tipo,id_prod=None,precio_old=None,precio_new=None,
+                 cantidad_old=None,cantidad_new=None,nombre_old=None,nombre_new=None):
+    id_evento=len(ListaEventos)+1
+    fecha=pd.Timestamp(datetime.now())
+    if tipo not in ['Nueva venta','Eliminar venta','Modificacion producto','Creacion producto',
+                    'Creacion oferta','Modificacion oferta']:
+        raise Exception('Tipo de evento:'+tipo+' no implementado.')
+    if tipo in ['Nueva venta','Eliminar venta']:
+        evento=EventoOferta(tipo, id_evento, fecha, id_prod)
+    elif tipo in ['Modificacion producto','Creacion producto']:
+        evento=EventoProducto(  tipo,id_evento,fecha,id_prod,precio_old,precio_new,
+                              cantidad_old,cantidad_new)
+    elif tipo in ['Creacion oferta','Modificacion oferta']:
+        evento=EventoOferta(tipo, id_evento, fecha, id_prod,nombre_old,nombre_new)
+    Eventos[id_evento]=evento
+    ListaEventos.loc[id_evento,'TIPO']=tipo
+    ListaEventos.loc[id_evento,'FECHA']=fecha
+    ListaEventos.to_csv(path_Lista_Eventos, encoding='utf-8')
+    with open(path_Eventos, 'wb') as file:
+        pickle.dump(Eventos, file)
 def crear_oferta(nombre_oferta,dic_productos,precio):
     """
     nombre_oferta:  Nombre de la oferta.
@@ -96,7 +174,7 @@ def crear_oferta(nombre_oferta,dic_productos,precio):
     for prod in dic_productos:
         cantidad_aux=Productos.loc[Productos['PRODUCTO']==prod,'CANTIDAD_DISPONIBLE'].values[0]
         cantidad=min(cantidad,cantidad_aux //dic_productos[prod])
-    
+    crear_evento('Creacion oferta',len(Productos),None,precio)
     crear_producto(nombre_oferta,descripcion,cantidad,precio)
 def crear_producto(producto,descripcion,cantidad,precio):
     """
@@ -110,6 +188,7 @@ def crear_producto(producto,descripcion,cantidad,precio):
         print('Producto existente.')
         return 
     id_prod_new=len(Productos)
+    crear_evento('Creacion producto',id_prod_new,None,precio,None,cantidad)
     Productos.loc[id_prod_new,'PRODUCTO']=producto
     Productos.loc[id_prod_new,'DESCRIPCIÓN']=descripcion
     Productos.loc[id_prod_new,'CANTIDAD_DISPONIBLE']=cantidad
@@ -121,6 +200,10 @@ def modificar_producto(id_producto,cantidad=None,precio=None):
     cantidad: Nueva cantidad.
     precio: Nuevo precio.
     """
+    
+    crear_evento('Modificacion producto',id_producto,Productos.loc[id_producto,'PRECIO'],
+                 precio,Productos.loc[id_producto,'CANTIDAD_DISPONIBLE'],cantidad)
+    
     if id_producto not in Productos.index.unique():
         print('Indice de producto no válido.')
         return 
@@ -132,6 +215,8 @@ def modificar_producto(id_producto,cantidad=None,precio=None):
     if cantidad is not None:
         Productos.loc[id_producto,'CANTIDAD_DISPONIBLE']=int(cantidad)
     print('Producto actualziado exitosamente.')  
+    
+    
     for oferta in Ofertas:
         if Productos.loc[id_producto,'PRODUCTO']  in Ofertas[oferta]:
             cantidad=np.infty
@@ -140,6 +225,7 @@ def modificar_producto(id_producto,cantidad=None,precio=None):
                 cantidad=min(cantidad,cantidad_aux //Ofertas[oferta][prod])
             Productos.loc[Productos['PRODUCTO']==oferta,'CANTIDAD_DISPONIBLE']=cantidad
     Productos.to_csv(path_Productos, encoding='utf-8')
+    
 def crear_despacho(id_venta,fecha,calle,numero,depto,comuna,fecha_entrega,monto_despacho):
     """
     id_venta: Identificador de la venta asociada.
@@ -210,6 +296,9 @@ def crear_venta(id_comprador,telefono,lista_productos,fecha,calle=None,numero=No
     monto_prods=np.sum([ Lista_Ventas[id_venta_new][id_prod]*int(Productos.loc[id_prod,'PRECIO']) 
                    for id_prod in Lista_Ventas[id_venta_new]])
     id_despacho=crear_despacho(id_venta_new,fecha,calle,numero,depto,comuna,fecha_entrega,monto_despacho)
+    
+    crear_evento('Nueva venta',id_venta_new)
+    
     Ventas.loc[id_venta_new,'FECHA']=fecha
     Ventas.loc[id_venta_new,'MONTO_PRODUTOS']=monto_prods
     Ventas.loc[id_venta_new,'MONTO_TOTAL']=monto_prods+monto_despacho-descuento
@@ -506,6 +595,7 @@ class Ventana_eliminar_venta:
         self.Ventas_aux.drop(self.Ventas_aux.index[self.Ventas_aux['ID_VENTA']==id_venta],inplace=True)
         self.ventas_anteriores.tableChanged()
         self.entry_id_venta["values"]=list(Ventas.index.values)
+        crear_evento('Eliminar venta',id_venta)
 class Ventana_nueva_venta:
     def __init__(self,root,bg_color):
         self.bg_color=bg_color
@@ -913,6 +1003,8 @@ class Ventana_gestionar_prods:
     def modificar_oferta(self):
         oferta=self.entry_ofertas_mod_of.get()
         oferta_new=self.entry_nuevo_nombre_mod_of.get()
+        crear_evento('Modificacion oferta',Productos.loc[Productos['PRODUCTO']==oferta].index.values[0]
+                     ,None,None,None,None,oferta,oferta_new)
         if oferta=='' or oferta_new=='' :
             messagebox.showinfo('Error','Seleccione oferta e ingrese un nuevo nombre.')
             return
@@ -926,6 +1018,7 @@ class Ventana_gestionar_prods:
         self.entry_ofertas_mod_of['values']=self.lista_ofertas
         messagebox.showinfo('Modificacipón oferta','Oferta Modificada exitosamente.')
         self.tabla_productos.tableChanged()
+        
     def agregar_producto(self):
         producto=self.entry_nomb_prod.get()
         descripcion=self.entry_descripcion.get()
